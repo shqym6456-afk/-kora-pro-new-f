@@ -319,11 +319,26 @@ const LSP = {
   },
   async team(id) {
     const slug = teamSlug.get(String(id)); if (!slug) return { coach: '', squad: [] };
-    const j = await lsJson(`${LS_BASE}/get/soccer/${slug}/clubs/${id}`).catch(() => null), ros = j && j.roster;
-    if (ros && ros.length) {
-      const pg = ab => /^G/.test(ab) ? 'gk' : /^(CM|DM|AM|LM|RM|M)/.test(ab) ? 'm' : /^(CD|LB|RB|CB|SW|WB|D)/.test(ab) ? 'd' : 'f', co = j.coach;
-      return { coach: (co && (co.displayName || co.fullName || co.name)) || '', squad: ros.map(p => { const a = p.athlete || p, ab = String((a.position && (a.position.abbreviation || a.position.name)) || '').toUpperCase(); return { n: short(a.shortName || a.displayName || a.fullName || '?'), fn: a.displayName || a.fullName || '', id: a.id, ph: (a.headshot && a.headshot.href) || (a.id ? 'https://a.espncdn.com/i/headshots/soccer/players/full/' + a.id + '.png' : ''), g: pg(ab), nat: a.citizenship || '', age: a.age || 0, num: a.jersey || '' }; }) };
-    }
+    const pg = ab => /^G/.test(ab) ? 'gk' : /^(CM|DM|AM|LM|RM|M)/.test(ab) ? 'm' : /^(CD|LB|RB|CB|SW|WB|D)/.test(ab) ? 'd' : 'f';
+    const toPlayer = p => {
+      const a = p.athlete || p, pos = a.position || p.position || {}, ab = String(pos.abbreviation || pos.name || '').toUpperCase();
+      const id = a.id || p.id || '';
+      const head = a.headshot || p.headshot || {};
+      return { n: short(a.shortName || a.displayName || a.fullName || '?'), fn: a.displayName || a.fullName || '',
+        id, ph: head.href || head.url || (id ? 'https://a.espncdn.com/i/headshots/soccer/players/full/' + id + '.png' : ''),
+        g: pg(ab), nat: a.citizenship || a.nationality || '', age: a.age || 0, num: a.jersey || p.jersey || '' };
+    };
+    // المصدر الأساسي: قائمة النادي من خدمة النتائج.
+    const j = await lsJson(`${LS_BASE}/get/soccer/${slug}/clubs/${id}`).catch(() => null);
+    const ros = j && Array.isArray(j.roster) ? j.roster : [];
+    if (ros.length) return { coach: (j.coach && (j.coach.displayName || j.coach.fullName || j.coach.name)) || '', squad: ros.map(toPlayer) };
+    // احتياط: ESPN roster API إذا لم تُرجع الخدمة الأساسية أي لاعبين.
+    try {
+      const ej = await lsJson(`${ESPN_BASE}/${slug}/teams/${id}?enable=roster`);
+      const team = (ej && ej.team) || ej || {}, roster = team.athletes || (team.roster && (team.roster.athletes || team.roster.entries || team.roster.players)) || [];
+      const entries = Array.isArray(roster) ? roster : [];
+      if (entries.length) return { coach: (team.coach && (team.coach.displayName || team.coach.fullName || team.coach.name)) || '', squad: entries.map(toPlayer) };
+    } catch (e) { log('ESPN roster', e.message); }
     return { coach: '', squad: [] };
   }
 };
