@@ -322,7 +322,7 @@ const LSP = {
     const j = await lsJson(`${LS_BASE}/get/soccer/${slug}/clubs/${id}`).catch(() => null), ros = j && j.roster;
     if (ros && ros.length) {
       const pg = ab => /^G/.test(ab) ? 'gk' : /^(CM|DM|AM|LM|RM|M)/.test(ab) ? 'm' : /^(CD|LB|RB|CB|SW|WB|D)/.test(ab) ? 'd' : 'f', co = j.coach;
-      return { coach: (co && (co.displayName || co.fullName || co.name)) || '', squad: ros.map(p => { const a = p.athlete || p, ab = String((a.position && (a.position.abbreviation || a.position.name)) || '').toUpperCase(); return { n: short(a.shortName || a.displayName || a.fullName || '?'), fn: a.displayName || a.fullName || '', id: a.id, ph: (a.headshot && a.headshot.href) || '', g: pg(ab), nat: a.citizenship || '', age: a.age || 0, num: a.jersey || '' }; }) };
+      return { coach: (co && (co.displayName || co.fullName || co.name)) || '', squad: ros.map(p => { const a = p.athlete || p, ab = String((a.position && (a.position.abbreviation || a.position.name)) || '').toUpperCase(); return { n: short(a.shortName || a.displayName || a.fullName || '?'), fn: a.displayName || a.fullName || '', id: a.id, ph: (a.headshot && a.headshot.href) || (a.id ? 'https://a.espncdn.com/i/headshots/soccer/players/full/' + a.id + '.png' : ''), g: pg(ab), nat: a.citizenship || '', age: a.age || 0, num: a.jersey || '' }; }) };
     }
     return { coach: '', squad: [] };
   }
