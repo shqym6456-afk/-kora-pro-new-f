@@ -250,7 +250,7 @@ function lsNorm(ev, c, slug) {
 function lsRoster(r) {
   const rs = r.roster || [], st = rs.filter(x => x.starter), o = { gk: '', d: [], m: [], f: [], b: [] };
   if (st.length < 11) return null;
-  const pp = x => { const a = x.athlete || {}; return { n: short(a.shortName || a.displayName || a.fullName || '?'), fn: a.displayName || a.fullName || '', id: a.id, num: x.jersey || a.jersey || '', ph: (a.headshot && a.headshot.href) || '' }; };
+  const pp = x => { const a = x.athlete || {}; return { n: short(a.shortName || a.displayName || a.fullName || '?'), fn: a.displayName || a.fullName || '', id: a.id, num: x.jersey || a.jersey || '', ph: (a.headshot && a.headshot.href) || (a.id ? 'https://a.espncdn.com/i/headshots/soccer/players/full/' + a.id + '.png' : '') }; };
   st.forEach(x => { const ab = String((x.position && (x.position.abbreviation || x.position.name)) || '').toUpperCase(), g = /^G/.test(ab) ? 'gk' : /^(CM|DM|AM|LM|RM|CAM|CDM|M)/.test(ab) ? 'm' : /^(CD|LB|RB|CB|SW|WB|LWB|RWB|D)/.test(ab) ? 'd' : 'f'; if (g === 'gk') o.gk = pp(x); else o[g].push(pp(x)); });
   rs.filter(x => !x.starter).forEach(x => o.b.push(pp(x)));
   return o.gk && o.d.length + o.m.length + o.f.length === 10 ? o : null;
