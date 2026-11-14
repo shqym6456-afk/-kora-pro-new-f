@@ -473,6 +473,33 @@ function update(list) {
   scoreFinished(cur); primed = true; M = cur; UPD = new Date().toISOString(); publish();
 }
 
+// إكمال صور لاعبي التشكيلة من قائمة الفريق عندما لا يعيد مصدر المباراة الصورة مباشرة.
+function photoName(p) { return norm0(p && (p.fn || p.n) || ''); }
+async function addLineupPhotos(code, teamLu) {
+  if (!teamLu) return teamLu;
+  let squad = [];
+  try { const info = await teamInfo(code); squad = info.squad || []; } catch (e) { }
+  const full = new Map(), shortMap = new Map(), ambiguous = new Set();
+  for (const p of squad) {
+    const keys = [photoName(p), norm0(p && p.n || '')].filter(Boolean);
+    for (const key of keys) if (!full.has(key)) full.set(key, p);
+    const surname = norm0(p && p.n || '').split(' ').pop();
+    if (surname) { if (shortMap.has(surname)) ambiguous.add(surname); else shortMap.set(surname, p); }
+  }
+  const enrich = x => {
+    if (!x) return x;
+    const p = typeof x === 'string' ? { n: x } : { ...x };
+    if (p.ph) return p;
+    const key = photoName(p), surname = norm0(p.n || '').split(' ').pop();
+    const match = full.get(key) || (surname && !ambiguous.has(surname) ? shortMap.get(surname) : null);
+    return match ? { ...match, ...p, id: p.id || match.id, fn: p.fn || match.fn, ph: p.ph || match.ph } : p;
+  };
+  return { ...teamLu, gk: enrich(teamLu.gk), d: (teamLu.d || []).map(enrich), m: (teamLu.m || []).map(enrich), f: (teamLu.f || []).map(enrich), b: (teamLu.b || []).map(enrich) };
+}
+async function withLineupPhotos(m, d) {
+  if (!d || !d.lu) return d;
+  return { ...d, lu: { h: await addLineupPhotos(m.h, d.lu.h), a: await addLineupPhotos(m.a, d.lu.a) } };
+}
 function setLUT(m, d) {
   const when = Date.parse(m.t);
   [['h', m.h], ['a', m.a]].forEach(([s, c]) => { if (d.lu && d.lu[s] && when > (lutAt[c] || 0)) { LUT[c] = d.lu[s]; lutAt[c] = when; } });
@@ -481,7 +508,7 @@ async function detail(id) {
   const c = dc.get(id), m = M.find(x => x.id === id), ttl = m && m.s === 'live' ? 12e3 : 12e4;
   if (c && Date.now() - c.at < ttl) return c.v;
   let v = { ev: [], st: null, lu: null };
-  try { v = await P.detail(id); } catch (e) { log('detail', e.message); }
+  try { v = await P.detail(id); if (m) v = await withLineupPhotos(m, v); } catch (e) { log('detail', e.message); }
   if (!v.ev.some(e => e[1] === 'g') && mf[id]) v = { ...v, ev: [...v.ev, ...mf[id]].sort((a, b) => a[0] - b[0]) };
   dc.set(id, { at: Date.now(), v });
   if (m && v.lu) setLUT(m, v);
@@ -504,7 +531,7 @@ async function refreshOnce() {
     // تعبئة تشكيلات "آخر مباراة" تدريجياً (طلب واحد كل دورة) لاستخدامها كتشكيلة متوقعة
     if (!(P.slow && P.slow()) && (MOCK || AFK || prune() <= 4)) {
       const t = M.find(m => m.s === 'ft' && !lined.has(m.id) && now - Date.parse(m.t) < 5 * 864e5);
-      if (t) { try { setLUT(t, P.lu ? { lu: await P.lu(t.id) } : await P.detail(t.id)); lined.add(t.id); publish(); } catch (e) { log('lineup', e.message); } }
+      if (t) { try { let d = P.lu ? { lu: await P.lu(t.id) } : await P.detail(t.id); d = await withLineupPhotos(t, d); setLUT(t, d); lined.add(t.id); publish(); } catch (e) { log('lineup', e.message); } }
     }
   } catch (e) { LASTERR = e.message; log('poll error:', e.message); }
 }
