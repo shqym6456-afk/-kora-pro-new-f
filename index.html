@@ -317,7 +317,12 @@ ${premCard()}
 <div class="card"><button class="go" style="background:var(--lv)" onclick="if(confirm('مسح كل بياناتك المحلية؟')){localStorage.removeItem('kp');location.reload()}">إعادة ضبط البيانات</button></div>`)}
 
 /* ---- قاعدة بيانات اللاعبين العالمية ---- */
-let PDB=[],PDB_PROMISE=null,PDB_HITS=[];
+let PDB=[],PDB_PROMISE=null,PDB_HITS=[],PDB_PHOTOS={},PDB_PHOTO_QUERIES=new Set(),PDB_PHOTO_TIMER=null,PDB_QUERY="";
+function pdbPhoto(p){return PDB_PHOTOS[pdbNorm(p&&p.name||"")]||p&&p.photo||""}
+function pdbAvatar(p,z){
+ const src=pdbPhoto(p),initial=pdbEsc((p&&p.name||"?")[0]);
+ return `<span class="av" style="width:${z}px;height:${z}px;background:var(--ac);font-size:${Math.round(z*.42)}px">${src?`<img src="${pdbEsc(src)}" alt="" loading="lazy" onerror="this.remove()">`:""}${initial}</span>`;
+}
 const PDB_FILES=16;
 const PDB_BASE="https://raw.githubusercontent.com/shqym6456-afk/-kora-pro-new-f/main/players-db/";
 const pdbNorm=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
@@ -334,19 +339,39 @@ function playerDbOpen(){
  pdbLoad().then(a=>{const e=$("pdbstatus");if(e)e.textContent="تم تحميل "+a.length.toLocaleString("en")+" لاعباً • اكتب الاسم للبحث"}).catch(e=>{const x=$("pdbstatus");if(x)x.textContent="تعذر تحميل البيانات. تحقق من الاتصال بالإنترنت."});
  setTimeout(()=>{$("pdbq")?.focus()},120);
 }
-function pdbSearch(q){
+function pdbRender(){
  const root=$("pdbr");if(!root)return;
- const k=pdbNorm(q);
- if(!k){root.innerHTML='<p class="st" style="padding:14px">اكتب اسم اللاعب للبحث في قاعدة البيانات.</p>';return}
- if(!PDB.length){root.innerHTML='<p class="st" style="padding:14px">انتظر اكتمال تحميل البيانات…</p>';return}
- PDB_HITS=PDB.filter(p=>pdbNorm(p.name).includes(k)).slice(0,50);
- root.innerHTML=PDB_HITS.length?PDB_HITS.map((p,i)=>`<button class="m" style="grid-template-columns:42px 1fr auto;text-align:right" onclick="pdbShow(${i})"><span class="av" style="width:36px;height:36px;background:var(--ac)">${pdbEsc((p.name||"?")[0])}</span><span style="font-weight:800">${pdbEsc(p.name)}<div class="st">${pdbPos[p.position]||"—"} • ${pdbEsc(p.country_code||"")}</div></span><span class="st">›</span></button>`).join(""):'<p class="st" style="padding:14px">ما لقينا لاعب بهذا الاسم.</p>';
+ root.innerHTML=PDB_HITS.length?PDB_HITS.map((p,i)=>`<button class="m" style="grid-template-columns:42px 1fr auto;text-align:right" onclick="pdbShow(${i})">${pdbAvatar(p,36)}<span style="font-weight:800">${pdbEsc(p.name)}<div class="st">${pdbPos[p.position]||"—"} • ${pdbEsc(p.country_code||"")}</div></span><span class="st">›</span></button>`).join(""):'<p class="st" style="padding:14px">ما لقينا لاعب بهذا الاسم.</p>';
  if(PDB_HITS.length===50)root.innerHTML+='<p class="st" style="padding:10px;text-align:center">أول 50 نتيجة فقط؛ أضف الاسم الكامل لتضييق البحث.</p>';
+}
+async function pdbResolvePhotos(q,k){
+ if(k.length<4||PDB_PHOTO_QUERIES.has(k))return;
+ PDB_PHOTO_QUERIES.add(k);
+ try{
+  const r=await fetch("/api/player-photos?name="+encodeURIComponent(q));
+  const j=await r.json();
+  if(!j.available){
+   PDB_PHOTO_QUERIES.delete(k);
+   const e=$("pdbstatus");if(e)e.textContent="تم تحميل "+PDB.length.toLocaleString("en")+" لاعباً • اربط مفتاح API-Football من الإعدادات لتفعيل صور اللاعبين.";
+   return;
+  }
+  (j.matches||[]).forEach(x=>{const n=pdbNorm(x.name);if(n&&x.photo)PDB_PHOTOS[n]=x.photo});
+  if(PDB_QUERY===k)pdbRender();
+ }catch(e){PDB_PHOTO_QUERIES.delete(k)}
+}
+function pdbSearch(q){
+ const k=pdbNorm(q);PDB_QUERY=k;
+ clearTimeout(PDB_PHOTO_TIMER);
+ if(k.length>=4)PDB_PHOTO_TIMER=setTimeout(()=>pdbResolvePhotos(q,k),450);
+ if(!k){PDB_HITS=[];const root=$("pdbr");if(root)root.innerHTML='<p class="st" style="padding:14px">اكتب اسم اللاعب للبحث في قاعدة البيانات.</p>';return}
+ if(!PDB.length){const root=$("pdbr");if(root)root.innerHTML='<p class="st" style="padding:14px">انتظر اكتمال تحميل البيانات…</p>';return}
+ PDB_HITS=PDB.filter(p=>pdbNorm(p.name).includes(k)).slice(0,50);
+ pdbRender();
 }
 function pdbShow(i){
  const p=PDB_HITS[i];if(!p)return;
  const h=p.height_m?Number(p.height_m).toFixed(2)+" م":"غير متوفر";
- sheet(`<div style="text-align:center;padding:22px 16px 6px"><span class="av" style="width:92px;height:92px;background:var(--ac);font-size:38px">${pdbEsc((p.name||"?")[0])}</span><h2 style="font-size:21px;font-weight:800;margin-top:10px">${pdbEsc(p.name)}</h2><p class="st">${pdbPos[p.position]||"المركز غير متوفر"}</p></div><div class="card" style="display:grid;grid-template-columns:1fr 1fr;gap:14px"><div><div class="st">المركز</div><b>${pdbPos[p.position]||"—"}</b></div><div><div class="st">الدولة</div><b>${pdbEsc(p.country_code||"—")}</b></div><div><div class="st">الطول</div><b>${h}</b></div><div><div class="st">تاريخ الميلاد</div><b>${pdbEsc(p.date_of_birth||"—")}</b></div><div style="grid-column:1/-1"><div class="st">مكان الميلاد</div><b>${pdbEsc(p.birthplace||"غير متوفر")}</b></div></div><p class="st" style="padding:0 18px 18px">هذه البيانات من قاعدة اللاعبين المضافة، ولا تتضمن صورة أو إحصائيات موسمية.</p><button class="go" onclick="playerDbOpen()">رجوع للبحث</button>`);
+ sheet(`<div style="text-align:center;padding:22px 16px 6px">${pdbAvatar(p,92)}<h2 style="font-size:21px;font-weight:800;margin-top:10px">${pdbEsc(p.name)}</h2><p class="st">${pdbPos[p.position]||"المركز غير متوفر"}</p></div><div class="card" style="display:grid;grid-template-columns:1fr 1fr;gap:14px"><div><div class="st">المركز</div><b>${pdbPos[p.position]||"—"}</b></div><div><div class="st">الدولة</div><b>${pdbEsc(p.country_code||"—")}</b></div><div><div class="st">الطول</div><b>${h}</b></div><div><div class="st">تاريخ الميلاد</div><b>${pdbEsc(p.date_of_birth||"—")}</b></div><div style="grid-column:1/-1"><div class="st">مكان الميلاد</div><b>${pdbEsc(p.birthplace||"غير متوفر")}</b></div></div><p class="st" style="padding:0 18px 18px">بيانات اللاعب من قاعدة البيانات، وتُضاف صورته عند توفرها من مصدر الصور.</p><button class="go" onclick="playerDbOpen()">رجوع للبحث</button>`);
 }
 
 /* ---- البحث ---- */
