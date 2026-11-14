@@ -677,6 +677,31 @@ async function testKey(k) {
   if (!/^[a-fA-F0-9]{32}$/.test(k)) return { error: 'token invalid' };
   return probe(k);
 }
+const pdbPhotoCache = new Map();
+const PDB_TARGET_LEAGUES = new Set([39,140,78,135,61,203,307,278,253,332,71,495,40,141,79,136,62]);
+async function searchPdbPhotos(name) {
+  const q = String(name || '').trim().slice(0, 80);
+  if (q.length < 4) return { available: !!AFK, matches: [] };
+  if (!AFK) return { available: false, matches: [] };
+  const key = norm0(q), old = pdbPhotoCache.get(key);
+  if (old && Date.now() - old.at < 864e5) return old.value;
+  const rows = await af('/players?search=' + encodeURIComponent(q) + '&season=' + SEASON);
+  const matches = rows.map(x => {
+    const p = x.player || {}, stats = x.statistics || [];
+    const leagueIds = stats.map(v => v.league && +v.league.id).filter(Boolean);
+    return { id: p.id, name: p.name || '', photo: p.photo || (p.id ? ph(p.id) : ''),
+      targetLeague: leagueIds.some(id => PDB_TARGET_LEAGUES.has(id)), leagueIds };
+  }).filter(p => p.id && p.name && /^https:\/\//.test(p.photo || ''));
+  const nq = norm0(q);
+  matches.sort((a, b) => {
+    const ae = norm0(a.name) === nq ? 1 : 0, be = norm0(b.name) === nq ? 1 : 0;
+    return (be - ae) || (Number(b.targetLeague) - Number(a.targetLeague));
+  });
+  const value = { available: true, matches: matches.slice(0, 30) };
+  pdbPhotoCache.set(key, { at: Date.now(), value });
+  return value;
+}
+
 const handle = async (req, res) => {
   const u = new URL(req.url, 'http://x');
   if (u.pathname.startsWith('/api/')) await adoptKey(req);
@@ -743,6 +768,11 @@ const handle = async (req, res) => {
     save(); return json(res, { days, codes: list });
   }
   if (u.pathname === '/api/winners') { if (!ADMIN || u.searchParams.get('key') !== ADMIN) { res.writeHead(403); return res.end('forbidden'); } return json(res, DB.winners); }
+  if (u.pathname === '/api/player-photos') {
+    const name = u.searchParams.get('name') || '';
+    try { return json(res, await searchPdbPhotos(name), cc(3600)); }
+    catch (e) { log('player photos', e.message); return json(res, { available: !!AFK, matches: [], error: 'تعذر جلب صور اللاعبين حالياً' }, cc(60)); }
+  }
   const pm = u.pathname.match(/^\/api\/player\/(\d+)$/);
   if (pm) return json(res, await playerInfo(+pm[1]), cc(3600));
   const tm = u.pathname.match(/^\/api\/team\/([A-Za-z0-9]{2,5})$/);
