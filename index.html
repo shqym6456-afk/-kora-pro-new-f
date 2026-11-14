@@ -74,7 +74,7 @@ select,input[type=text]{width:100%;padding:10px 12px;border-radius:12px;border:1
 .c2{display:grid;grid-template-columns:1fr 46px 1fr;align-items:start;gap:6px;padding:9px 12px;border-bottom:1px solid var(--ln);font-size:13px;line-height:1.6}.c2 b{text-align:center;color:var(--ac);background:var(--bg);border:1px solid var(--ln);border-radius:10px;padding:1px 0;font-size:12px}.c2n{padding:7px 16px;text-align:center;color:var(--mu);font-size:12px;background:var(--bg)}.c2h{display:grid;grid-template-columns:1fr 1fr;padding:8px 16px;font-weight:800;font-size:14px;border-bottom:2px solid var(--ln)}
 .av{position:relative;display:inline-grid;place-items:center;border-radius:50%;overflow:hidden;color:#fff;font-weight:800;flex:none;vertical-align:middle}.av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#fff}.rt{display:inline-block;min-width:32px;padding:1px 6px;border-radius:8px;color:#fff;font-weight:800;font-size:11px;text-align:center}.tl{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}.tl div{background:var(--cd);border:1px solid var(--ln);border-radius:12px;padding:10px 4px;text-align:center}.tl b{display:block;font-size:18px}.tl span{font-size:11px;color:var(--mu)}.pl{cursor:pointer}.pl .av{border:2px solid #fff;margin:0 auto 2px}
 </style></head><body>
-<header><h1>كورة<b>برو</b></h1><div><span class="pts" id="pts">0 ن</span><button class="ib" onclick="srchOpen()" aria-label="بحث">🔍</button> <button class="ib" onclick="stg()" aria-label="الإعدادات">⚙️</button> <button class="ib" onclick="th()" aria-label="الوضع">◐</button></div></header>
+<header><h1>كورة<b>برو</b></h1><div><span class="pts" id="pts">0 ن</span><button class="ib" onclick="srchOpen()" aria-label="بحث">🔍</button> <button class="ib" onclick="playerDbOpen()" aria-label="بحث اللاعبين">👤</button> <button class="ib" onclick="stg()" aria-label="الإعدادات">⚙️</button> <button class="ib" onclick="th()" aria-label="الوضع">◐</button></div></header>
 <main id="v"></main>
 <nav id="nv"></nav>
 <div class="ov" id="ov" onclick="if(event.target===this)cl()"><div class="sh" id="sh"></div></div>
@@ -315,6 +315,40 @@ ${premCard()}
 <div class="card"><b>🔌 ربط مصدر البيانات (API)</b><p class="st" style="margin:6px 0;line-height:1.7">التطبيق يعمل الآن بدون مفتاح عبر خدمة مجانية. هذه الخانة اختيارية: الصق مفتاح API-Football أو football-data.org فقط إن أردت مصدراً آخر (يُحفظ في جوالك فقط).</p><input type="text" id="kk" placeholder="مفتاح API (32 حرفاً)" value="${localStorage.getItem('kpk')||''}" autocomplete="off"><div class="days" style="padding:10px 0 0"><button class="chip" onclick="keyTest()">اختبار</button><button class="chip on" onclick="keySave()">حفظ</button><button class="chip" onclick="keyClear()">حذف</button></div><div id="kr" class="st" style="margin-top:8px;line-height:1.8"></div></div>
 <div class="card"><b>🎨 المظهر</b><button class="go" onclick="th()">تبديل الفاتح / الداكن</button></div>
 <div class="card"><button class="go" style="background:var(--lv)" onclick="if(confirm('مسح كل بياناتك المحلية؟')){localStorage.removeItem('kp');location.reload()}">إعادة ضبط البيانات</button></div>`)}
+
+/* ---- قاعدة بيانات اللاعبين العالمية ---- */
+let PDB=[],PDB_PROMISE=null,PDB_HITS=[];
+const PDB_FILES=16;
+const PDB_BASE="https://raw.githubusercontent.com/shqym6456-afk/-kora-pro-new-f/main/players-db/";
+const pdbNorm=s=>String(s||"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\\s+/g," ").trim();
+const pdbEsc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pdbPos={G:"حارس مرمى",D:"مدافع",M:"لاعب وسط",F:"مهاجم"};
+async function pdbLoad(){
+ if(PDB.length)return PDB;
+ if(!PDB_PROMISE)PDB_PROMISE=Promise.all(Array.from({length:PDB_FILES},(_,i)=>fetch(PDB_BASE+"players-"+String(i+1).padStart(2,"0")+".json").then(r=>{if(!r.ok)throw Error("تعذر تحميل قاعدة اللاعبين");return r.json()}))).then(a=>{PDB=a.flatMap(x=>x.players||[]);return PDB}).catch(e=>{PDB_PROMISE=null;throw e});
+ return PDB_PROMISE;
+}
+function playerDbOpen(){
+ CUR="pdb";
+ sheet(`<div class="sec" style="padding-top:18px">👤 قاعدة بيانات اللاعبين</div><div style="padding:0 16px"><input id="pdbq" type="text" placeholder="ابحث باسم اللاعب بالإنجليزية…" oninput="pdbSearch(this.value)" autocomplete="off"><p id="pdbstatus" class="st" style="padding:8px 2px">جارٍ تحميل قاعدة بيانات اللاعبين…</p></div><div class="lg" id="pdbr"></div>`);
+ pdbLoad().then(a=>{const e=$("pdbstatus");if(e)e.textContent="تم تحميل "+a.length.toLocaleString("en")+" لاعباً • اكتب الاسم للبحث"}).catch(e=>{const x=$("pdbstatus");if(x)x.textContent="تعذر تحميل البيانات. تحقق من الاتصال بالإنترنت."});
+ setTimeout(()=>{$("pdbq")?.focus()},120);
+}
+function pdbSearch(q){
+ const root=$("pdbr");if(!root)return;
+ const k=pdbNorm(q);
+ if(!k){root.innerHTML='<p class="st" style="padding:14px">اكتب اسم اللاعب للبحث في قاعدة البيانات.</p>';return}
+ if(!PDB.length){root.innerHTML='<p class="st" style="padding:14px">انتظر اكتمال تحميل البيانات…</p>';return}
+ PDB_HITS=PDB.filter(p=>pdbNorm(p.name).includes(k)).slice(0,50);
+ root.innerHTML=PDB_HITS.length?PDB_HITS.map((p,i)=>`<button class="m" style="grid-template-columns:42px 1fr auto;text-align:right" onclick="pdbShow(${i})"><span class="av" style="width:36px;height:36px;background:var(--ac)">${pdbEsc((p.name||"?")[0])}</span><span style="font-weight:800">${pdbEsc(p.name)}<div class="st">${pdbPos[p.position]||"—"} • ${pdbEsc(p.country_code||"")}</div></span><span class="st">›</span></button>`).join(""):'<p class="st" style="padding:14px">ما لقينا لاعب بهذا الاسم.</p>';
+ if(PDB_HITS.length===50)root.innerHTML+='<p class="st" style="padding:10px;text-align:center">أول 50 نتيجة فقط؛ أضف الاسم الكامل لتضييق البحث.</p>';
+}
+function pdbShow(i){
+ const p=PDB_HITS[i];if(!p)return;
+ const h=p.height_m?Number(p.height_m).toFixed(2)+" م":"غير متوفر";
+ sheet(`<div style="text-align:center;padding:22px 16px 6px"><span class="av" style="width:92px;height:92px;background:var(--ac);font-size:38px">${pdbEsc((p.name||"?")[0])}</span><h2 style="font-size:21px;font-weight:800;margin-top:10px">${pdbEsc(p.name)}</h2><p class="st">${pdbPos[p.position]||"المركز غير متوفر"}</p></div><div class="card" style="display:grid;grid-template-columns:1fr 1fr;gap:14px"><div><div class="st">المركز</div><b>${pdbPos[p.position]||"—"}</b></div><div><div class="st">الدولة</div><b>${pdbEsc(p.country_code||"—")}</b></div><div><div class="st">الطول</div><b>${h}</b></div><div><div class="st">تاريخ الميلاد</div><b>${pdbEsc(p.date_of_birth||"—")}</b></div><div style="grid-column:1/-1"><div class="st">مكان الميلاد</div><b>${pdbEsc(p.birthplace||"غير متوفر")}</b></div></div><p class="st" style="padding:0 18px 18px">هذه البيانات من قاعدة اللاعبين المضافة، ولا تتضمن صورة أو إحصائيات موسمية.</p><button class="go" onclick="playerDbOpen()">رجوع للبحث</button>`);
+}
+
 /* ---- البحث ---- */
 function srch(q){CUR="srch";const l=$("rs");if(!l)return;const k=nz(q.trim());
 const r=Object.keys(TI).filter(c=>!k||nz(N(c)).includes(k)||nz(TI[c][0]).includes(k)||c.toLowerCase()==k||nz(TI[c][4]).includes(k)).sort((a,b)=>N(a).localeCompare(N(b),"ar"));
