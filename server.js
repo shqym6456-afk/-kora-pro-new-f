@@ -667,7 +667,7 @@ async function probe(k) {
 async function adoptKey(req) {
   const k = String(req.headers['x-api-key'] || '').trim();
   if (!k || k === AFK || k === TOKEN || !/^[a-fA-F0-9]{32}$/.test(k)) return;
-  const pi = await probe(k); if (!pi.ok || pi.seasonOk === false) return;   // لا يُعتمد إلا مفتاح صالح ويعمل على الموسم الحالي
+  const pi = await probe(k); if (!pi.ok) return;   // يُعتمد المفتاح إذا كان صالحاً حتى لو كانت الخطة لا تغطي الموسم الحالي
   if (pi.prov === 'af') { AFK = k; TOKEN = ''; P = AFP; PROV = 'api-football'; } else { TOKEN = k; AFK = ''; P = FDP; PROV = 'football-data'; }
   MOCK = false; M = []; afBase = []; afStale = true; lastRef = 0; lastSt = 0; LASTERR = '';
   log('تم اعتماد مفتاح من التطبيق:', PROV);
@@ -678,14 +678,31 @@ async function testKey(k) {
   return probe(k);
 }
 const pdbPhotoCache = new Map();
+let pdbPhotoSeason = 0;
 const PDB_TARGET_LEAGUES = new Set([39,140,78,135,61,203,307,278,253,332,71,495,40,141,79,136,62]);
+async function searchPdbRows(q) {
+  // بعض الخطط لا تتيح الموسم الأحدث؛ جرّب المواسم السابقة حتى نجد موسماً مسموحاً وبيانات للاعب.
+  const years = pdbPhotoSeason ? [pdbPhotoSeason] : [SEASON, SEASON - 1, SEASON - 2, SEASON - 3];
+  let lastError = null;
+  for (const year of years) {
+    try {
+      const rows = await af('/players?search=' + encodeURIComponent(q) + '&season=' + year);
+      if (rows.length) { pdbPhotoSeason = year; return rows; }
+    } catch (e) {
+      lastError = e;
+      if (!/season|plan|subscription|access|available/i.test(e.message)) throw e;
+    }
+  }
+  if (lastError && !pdbPhotoSeason) throw lastError;
+  return [];
+}
 async function searchPdbPhotos(name) {
   const q = String(name || '').trim().slice(0, 80);
   if (q.length < 4) return { available: !!AFK, matches: [] };
   if (!AFK) return { available: false, matches: [] };
   const key = norm0(q), old = pdbPhotoCache.get(key);
   if (old && Date.now() - old.at < 864e5) return old.value;
-  const rows = await af('/players?search=' + encodeURIComponent(q) + '&season=' + SEASON);
+  const rows = await searchPdbRows(q);
   const matches = rows.map(x => {
     const p = x.player || {}, stats = x.statistics || [];
     const leagueIds = stats.map(v => v.league && +v.league.id).filter(Boolean);
