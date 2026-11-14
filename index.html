@@ -320,7 +320,7 @@ ${premCard()}
 let PDB=[],PDB_PROMISE=null,PDB_HITS=[];
 const PDB_FILES=16;
 const PDB_BASE="https://raw.githubusercontent.com/shqym6456-afk/-kora-pro-new-f/main/players-db/";
-const pdbNorm=s=>String(s||"").normalize("NFD").replace(/[\\u0300-\\u036f]/g,"").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\\s+/g," ").trim();
+const pdbNorm=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
 const pdbEsc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const pdbPos={G:"حارس مرمى",D:"مدافع",M:"لاعب وسط",F:"مهاجم"};
 async function pdbLoad(){
