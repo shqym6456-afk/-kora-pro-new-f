@@ -668,7 +668,11 @@ async function adoptKey(req) {
   const k = String(req.headers['x-api-key'] || '').trim();
   if (!k || k === AFK || k === TOKEN || !/^[a-fA-F0-9]{32}$/.test(k)) return;
   const pi = await probe(k); if (!pi.ok) return;   // يُعتمد المفتاح إذا كان صالحاً حتى لو كانت الخطة لا تغطي الموسم الحالي
-  if (pi.prov === 'af') { AFK = k; TOKEN = ''; P = AFP; PROV = 'api-football'; } else { TOKEN = k; AFK = ''; P = FDP; PROV = 'football-data'; }
+  if (pi.prov === 'af') {
+    AFK = k;
+    // إذا كانت الخطة لا تغطي الموسم الحالي، استخدم المفتاح لصور اللاعبين فقط ولا تبدّل مزوّد بيانات المباريات.
+    if (pi.seasonOk) { TOKEN = ''; P = AFP; PROV = 'api-football'; }
+  } else { TOKEN = k; AFK = ''; P = FDP; PROV = 'football-data'; }
   MOCK = false; M = []; afBase = []; afStale = true; lastRef = 0; lastSt = 0; LASTERR = '';
   log('تم اعتماد مفتاح من التطبيق:', PROV);
 }
